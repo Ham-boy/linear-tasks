@@ -1,0 +1,19 @@
+{
+  "name": "linear-tasks",
+  "version": "0.1.0",
+  "description": "A side panel of your Linear cycle, what needs you, and your work queue, with buttons for Claude to plan and implement each issue",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "projectsRoot": {
+      "type": "string",
+      "title": "Projects folder",
+      "description": "The folder whose subfolders the panel offers as each issue's project",
+      "default": ""
+    }
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Hamdi-flow"
+  },
+  "repository": "https://github.com/Hamdi-flow/linear-tasks"
+}

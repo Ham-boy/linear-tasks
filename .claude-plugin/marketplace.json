@@ -1,0 +1,5 @@
+{
+  "name": "linear-tasks-local",
+  "owner": { "name": "local" },
+  "plugins": [{ "name": "linear-tasks", "source": "./" }]
+}
