@@ -1,4 +1,4 @@
-import { expect, test } from 'claude-code/testing'
+import { expect, mock, test } from 'claude-code/testing'
 
 const PANE = {
   plugin: 'linear-tasks',
@@ -238,4 +238,32 @@ test('the button above the prompt shows and hides the panel, with what needs you
     await band.unmount()
     await pane.unmount()
   }
+})
+
+test('a new session leaves the panel closed, with the button saying what needs you', async ($, on) => {
+  const clock = mock.clock(on, { now: NOW })
+  on('store.get', () => ({ value: undefined }))
+  on('store.set', () => ({ value: undefined }))
+  on('command.register', () => ({ value: undefined }))
+  on('tool.list', () => ({ value: [{ name: 'mcp__lin__list_cycles', description: '', mcp: true }] }))
+  on('mcp.call', (_: unknown, e: { tool: string; args: Record<string, unknown> }) => ({
+    value: { content: [{ type: 'text', text: JSON.stringify(answer(e.tool, e.args)) }], isError: false },
+  }))
+  const opened: string[] = []
+  on('ui.open', (_: unknown, e: { id: string }) => {
+    opened.push(e.id)
+
+    return { value: { isPlaced: true } }
+  })
+  on('session.start', (_: unknown, e: { cwd: string }) => ({ cwd: e.cwd }))
+
+  await $.session.start({ cwd: 'C:/projects/web-app', surface: 'desktop', isInteractive: true })
+  // The first load waits a moment after the session starts.
+  await clock.advance(1)
+  const band = await $.ui.mount({ ...BAND, surface: 'desktop' })
+
+  expect(opened).toEqual([])
+  expect(await band.find({ type: 'Button', text: /Show Linear/ })).toBeDefined()
+  expect(await band.find({ type: 'Button', text: /2 need you/ })).toBeDefined()
+  await band.unmount()
 })

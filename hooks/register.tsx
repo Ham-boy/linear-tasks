@@ -531,7 +531,9 @@ export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'linear', description: 'Show or hide your Linear tasks panel' })
     await loadStored($)
-    void openPane($)
+    // The pane stays closed until the toggle or /linear opens it; a first load
+    // still runs so the toggle can say what needs you.
+    $.clock.after(1, () => void refresh($))
     $.clock.every(REFRESH_MS, () => void refresh($))
 
     return next(e)

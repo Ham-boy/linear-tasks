@@ -9,7 +9,7 @@ A Claude Code mod that keeps your Linear work in a panel beside the chat, and le
 - **Create plan:** Claude reads the issue, explores the issue's project folder without changing anything, and posts a step-by-step plan to the issue as a comment that starts with `## Claude plan for <issue>`.
 - **Implement plan:** Claude follows that plan in the issue's project folder, on the issue's git branch, and runs the tests. It never pushes, opens a pull request or changes the Linear issue without asking you.
 
-A **Show Linear / Hide Linear** button above the prompt box toggles the panel and shows how many items need you. `/linear` does the same.
+A **Show Linear / Hide Linear** button above the prompt box toggles the panel and shows how many items need you. `/linear` does the same. The panel starts closed; it opens only when you toggle it.
 
 ## Install
 
