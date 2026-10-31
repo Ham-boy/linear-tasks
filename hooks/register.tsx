@@ -54,6 +54,15 @@ let me: { id: string; teams: { id: string }[] } | null = null
 let inflight: Promise<void> | null = null
 let projectsRoot = ''
 
+// The Linear tools the panel reads outside a chat turn, where auto mode needs
+// an allow rule for each.
+const READS = ['get_user', 'list_issues', 'get_issue', 'list_cycles', 'list_issue_statuses', 'get_notifications']
+
+// The error for a refused read: a first line, then one allow rule per line.
+function allowRules(prefix: string) {
+  return ['Linear needs allow rules.', ...READS.map(tool => `mcp__${prefix}__${tool}`)].join('\n')
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function linear($: Engine, tool: string, args: Record<string, unknown>): Promise<any> {
   if (!server) throw new Error('Linear is not connected')
@@ -93,6 +102,7 @@ async function connect($: Engine): Promise<string | null> {
     ...found.map(name => ({ server: name, mode: 'tool' as const })),
   ]
   const failures: string[] = []
+  let refused: string | null = null
   for (const attempt of attempts) {
     server = attempt.server
     mode = attempt.mode
@@ -106,14 +116,18 @@ async function connect($: Engine): Promise<string | null> {
       }
       failures.push(`${attempt.mode} ${attempt.server}: no user`)
     } catch (err) {
-      failures.push(`${attempt.mode} ${attempt.server}: ${err instanceof Error ? err.message : String(err)}`.slice(0, 160))
+      const message = err instanceof Error ? err.message : String(err)
+      // The connector answered but the permission check said no.
+      if (/ refused: /.test(message)) refused ??= attempt.server
+      failures.push(`${attempt.mode} ${attempt.server}: ${message}`.slice(0, 160))
     }
   }
   server = null
 
-  return found.length === 0
-    ? "Linear isn't connected in this session. Connect it with /mcp, then press Refresh."
-    : `Couldn't reach Linear. ${failures.join(' · ')}`
+  if (found.length === 0) return "Linear isn't connected in this session. Connect it with /mcp, then press Refresh."
+  if (refused) return allowRules(refused)
+
+  return `Couldn't reach Linear. ${failures.join(' · ')}`
 }
 
 function stages(statuses: { name: string; type: string }[], issues: { status: string; statusType: string }[]) {
@@ -237,7 +251,9 @@ async function load($: Engine) {
     await update($, status, () => ({ isLoading: false, error: null }))
   } catch (err) {
     me = null
-    const message = err instanceof Error ? err.message : String(err)
+    let message = err instanceof Error ? err.message : String(err)
+    // A later read refused after `get_user` was allowed: some rules are missing.
+    if (server && / refused: /.test(message)) message = allowRules(server)
     await update($, status, () => ({ isLoading: false, error: message }))
   }
 }
@@ -452,20 +468,32 @@ function stackSvg(cells: number, segments: { value: number; color: string }[]) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="12" viewBox="0 0 ${w} 12">${rects.join('')}</svg>`
 }
 
-// The status error, split into a calm title, what to do, and the raw detail.
-function explain(error: string): { title: string; body: string; detail: string } {
+// The status error, split into a calm title, what to do, the raw detail (one
+// line per row), and what Copy puts on the clipboard, if anything.
+function explain(error: string): { title: string; body: string; detail: string; copy: string } {
   if (/^Linear isn't connected/.test(error)) {
-    return { title: "Linear isn't connected", body: error.replace(/^[^.]*\.\s*/, ''), detail: '' }
+    return { title: "Linear isn't connected", body: error.replace(/^[^.]*\.\s*/, ''), detail: '', copy: '' }
+  }
+  if (/^Linear needs allow rules/.test(error)) {
+    const rules = error.split('\n').slice(1)
+
+    return {
+      title: "Allow the panel's Linear reads",
+      body: 'The panel reads Linear outside a chat turn, so auto mode needs an allow rule for each read. Add these to permissions.allow in ~/.claude/settings.json, then press Refresh.',
+      detail: rules.join('\n'),
+      copy: rules.map(rule => `"${rule}"`).join(',\n'),
+    }
   }
   if (/^Couldn't reach Linear/.test(error)) {
     return {
       title: "Couldn't reach Linear",
       body: 'Check the Linear connector with /mcp, then press Refresh.',
       detail: error.replace(/^Couldn't reach Linear\.\s*/, ''),
+      copy: '',
     }
   }
 
-  return { title: "Couldn't load your issues", body: 'Press Refresh to try again.', detail: error }
+  return { title: "Couldn't load your issues", body: 'Press Refresh to try again.', detail: error, copy: '' }
 }
 
 // What Needs you counts: unhidden notices, issues blocking others, plans ready.
@@ -634,15 +662,22 @@ export const register: Register = (on, options) => {
           <Text weight="semibold">{why.title}</Text>
           <Text dimColor>{why.body}</Text>
           {why.detail !== '' && (
-            <Text dimColor size="caption">
-              {why.detail}
-            </Text>
+            <Box flexDirection="column">
+              {why.detail.split('\n').map(line => (
+                <Text key={line} dimColor size="caption">
+                  {line}
+                </Text>
+              ))}
+            </Box>
           )}
-          <Box flexDirection="row">
+          <Box flexDirection="row" gap={1}>
             {st.isLoading ? (
               <Text dimColor>Refreshing…</Text>
             ) : (
               <Button key="refresh" label="↻ Refresh" onPress={() => void refresh($)} />
+            )}
+            {why.copy !== '' && (
+              <Button key="copy-rules" label="Copy rules" onPress={() => void $.ui.copy({ text: why.copy, surface: e.surface })} />
             )}
           </Box>
         </Box>

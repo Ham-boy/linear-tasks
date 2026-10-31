@@ -177,6 +177,23 @@ test('without Linear the panel says how to connect it', async ($, on) => {
   await ui.unmount()
 })
 
+test('a refused Linear read names the allow rules it needs', async ($, on) => {
+  on('clock.now', () => ({ value: NOW }))
+  on('store.get', () => ({ value: undefined }))
+  on('store.set', () => ({ value: undefined }))
+  on('tool.list', () => ({ value: [{ name: 'mcp__lin__list_cycles', description: '', mcp: true }] }))
+  on('mcp.call', () => ({ deny: 'the classifier gave no verdict' }))
+  on('tool.call', () => ({ deny: 'the classifier gave no verdict' }))
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await ui.press({ key: 'refresh' })
+
+  expect(await ui.find({ type: 'Text', text: /Allow the panel's Linear reads/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^mcp__lin__get_user$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^mcp__lin__get_notifications$/ })).toBeDefined()
+  await ui.unmount()
+})
+
 const BAND = {
   plugin: 'linear-tasks',
   component: 'AbovePrompt',
